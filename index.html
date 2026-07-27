@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Private Analyst Dashboard</title>
-    <!-- Map Styling loaded directly -->
-    <link rel="stylesheet" href="https://unpkg.com" />
-    <script src="https://unpkg.com"></script>
+    <!-- Fixed Leaflet Mapping CDNs -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: #fff; margin: 20px; }
         .box { background: #1e1e1e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333; }
@@ -71,8 +71,8 @@
     </div>
 
     <script>
-        // CONFIGURATION LAYER 
-        const SUPABASE_URL = "https://supabase.co";
+        // CONFIGURATION LAYER - CORRECTED PROJECT URL
+        const SUPABASE_URL = "https://yhernanwozabpmanoyif.supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
         
         let map, marker;
@@ -87,7 +87,6 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         }
 
-        // FIXED LOGIN FUNCTION: Fully declared right here
         async function login() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -151,7 +150,8 @@
         async function getStreetAddress(lat, lon) {
             if (!lat || !lon) return "No GPS Data Available";
             try {
-                const res = await fetch(`https://openstreetmap.org{lat}&lon=${lon}`);
+                // Fixed Nominatim reverse lookup endpoint syntax
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
                 const data = await res.json();
                 return data.display_name || "Address look up failure";
             } catch (e) {

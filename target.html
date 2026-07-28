@@ -1,116 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Redirecting...</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <meta charset="UTF-8">
+  <title>Redirecting...</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body style="background: #f4f4f4;">
-    <p style="font-family: monospace; color: #333; text-align: center; margin-top: 20%; font-size: 18px;" id="msg">Establishing secure routing channel...</p>
+<body>
+  <p style="font-family: sans-serif; text-align: center; margin-top: 20%; color:#555;">
+    Redirecting... <br>
+    <small>This link tracks clicks for analytics purposes.</small>
+  </p>
 
-    <script>
-        const SUPABASE_URL = "https://yhernanwozabpmanoyif.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
-        const IPAPI_KEY = "d914b3aafbe68775e38f9ee4e3f9beb3";
-        
-        const _supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+  <script>
+    const SUPABASE_URL = "https://YOUR-PROJECT-ID.supabase.co";
+    const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const linkToken = urlParams.get('c'); 
+    const params = new URLSearchParams(window.location.search);
+    const linkToken = params.get('c');
 
-        async function fireAndRedirect(payload, redirectUrl) {
-            if (!_supabase) {
-                window.location.href = redirectUrl;
-                return;
-            }
-            try {
-                // Await the database write completely before redirecting
-                const { error } = await _supabase.from('access_logs').insert([payload]);
-                if (error) {
-                    console.error("Supabase insert error:", error.message);
-                }
-            } catch (err) {
-                console.error("Telemetry insert error:", err);
-            }
-            // Small delay to ensure network packet clears, then redirect
-            setTimeout(() => {
-                window.location.href = redirectUrl;
-            }, 300);
-        }
+    function getDeviceType() {
+      const ua = navigator.userAgent;
+      if (/tablet|ipad/i.test(ua)) return "Tablet";
+      if (/mobile|android|iphone/i.test(ua)) return "Mobile";
+      return "Desktop";
+    }
 
-        function parseDeviceData() {
-            const ua = navigator.userAgent;
-            let os = "Unknown OS";
-            if (/android/i.test(ua)) os = "Android Mobile";
-            else if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) os = "Apple iOS Mobile";
-            else if (/Macintosh/i.test(ua)) os = "macOS Desktop";
-            else if (/Windows NT/i.test(ua)) os = "Windows Desktop";
-            return { os: os, platform: navigator.platform, cores: navigator.hardwareConcurrency || "N/A" };
-        }
+    window.addEventListener('DOMContentLoaded', async () => {
+      if (!linkToken) {
+        document.body.innerHTML = "<p style='text-align:center;margin-top:20%;'>Invalid link.</p>";
+        return;
+      }
 
-        window.addEventListener('DOMContentLoaded', async () => {
-            if (!_supabase) {
-                document.getElementById('msg').innerText = "Critical Security Layer Offline.";
-                return;
-            }
+      const { data: linkData, error } = await supabaseClient
+        .from('tracking_links')
+        .select('destination_url')
+        .eq('token', linkToken)
+        .single();
 
-            if (!linkToken) {
-                document.getElementById('msg').innerText = "Routing Failure: Invalid Parameters.";
-                return;
-            }
+      if (error || !linkData) {
+        document.body.innerHTML = "<p style='text-align:center;margin-top:20%;'>Link not found.</p>";
+        return;
+      }
 
-            const { data: linkData, error } = await _supabase.from('tracking_links').select('destination_url').eq('token', linkToken).single();
-            if (error || !linkData) {
-                document.getElementById('msg').innerText = "Link reference does not exist.";
-                return;
-            }
+      // Get rough location from IP (city/country only, no exact tracking)
+      let country = "Unknown", city = "Unknown";
+      try {
+        const geoRes = await fetch('https://ipapi.co/json/');
+        const geoData = await geoRes.json();
+        country = geoData.country_name || "Unknown";
+        city = geoData.city || "Unknown";
+      } catch (e) {}
 
-            const decoyUrl = linkData.destination_url;
-            const device = parseDeviceData();
+      const logEntry = {
+        associated_token: linkToken,
+        country: country,
+        city: city,
+        device_type: getDeviceType(),
+        referrer: document.referrer || "Direct"
+      };
 
-            let payload = {
-                associated_token: linkToken,
-                device_os: device.os,
-                platform: device.platform,
-                cpu_cores: String(device.cores),
-                screen_resolution: `${window.screen.width}x${window.screen.height}`,
-                public_ip: "Unavailable",
-                battery_charge: "N/A",
-                gps_latitude: null,
-                gps_longitude: null,
-                gps_accuracy: "IP-Geo Fallback"
-            };
+      try {
+        await supabaseClient.from('click_logs').insert([logEntry]);
+      } catch (e) {}
 
-            // Grab Battery status quietly
-            try {
-                const b = await navigator.getBattery();
-                payload.battery_charge = `${Math.round(b.level * 100)}%`;
-            } catch(e){}
-
-            // Silent IP Geolocation fetch
-            try {
-                const ipRes = await fetch(`https://ipapi.co/${IPAPI_KEY}/json/`);
-                if (ipRes.ok) {
-                    const ipData = await ipRes.json();
-                    if (ipData && ipData.ip) {
-                        payload.public_ip = ipData.ip;
-                        payload.gps_latitude = ipData.latitude;
-                        payload.gps_longitude = ipData.longitude;
-                    }
-                } else {
-                    const fallbackRes = await fetch(`https://ipapi.co/json/`);
-                    const fallbackData = await fallbackRes.json();
-                    if (fallbackData && fallbackData.ip) {
-                        payload.public_ip = fallbackData.ip;
-                        payload.gps_latitude = fallbackData.latitude;
-                        payload.gps_longitude = fallbackData.longitude;
-                    }
-                }
-            } catch(err) {}
-
-            // Wait for database write to finish, then bounce to Facebook
-            await fireAndRedirect(payload, decoyUrl);
-        });
-    </script>
+      window.location.replace(linkData.destination_url);
+    });
+  </script>
 </body>
 </html>

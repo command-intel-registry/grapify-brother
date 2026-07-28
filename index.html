@@ -1,215 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Private Analyst Dashboard</title>
-    <!-- Leaflet Mapping CDNs -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        body { font-family: -apple-system, sans-serif; background: #121212; color: #fff; margin: 20px; }
-        .box { background: #1e1e1e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333; }
-        input, button { padding: 10px; margin: 5px 0; width: 100%; border-radius: 4px; border: 1px solid #444; background: #2a2a2a; color: #fff; box-sizing: border-box; }
-        button { background: #0070f3; cursor: pointer; font-weight: bold; border: none; }
-        button:hover { background: #0051b3; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; font-size: 14px; }
-        th { background: #252525; }
-        #map { height: 400px; width: 100%; border-radius: 8px; margin-top: 10px; border: 1px solid #444; }
-        .hidden { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <title>Link Analytics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; background: #f8fafc; color: #1e293b; padding: 20px; margin: 0; }
+    .wrapper { max-width: 1000px; margin: 0 auto; display: none; }
+    .auth-panel { text-align: center; margin-top: 15%; }
+    .auth-box { background: #fff; padding: 30px; display: inline-block; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px; margin-top: 20px; }
+    input, button { padding: 10px; font-family: inherit; border: 1px solid #cbd5e1; border-radius: 6px; width: 100%; box-sizing: border-box; margin-bottom: 10px; }
+    button { background: #2563eb; color: #fff; cursor: pointer; font-weight: 600; border: none; }
+    button:hover { background: #1d4ed8; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+    th, td { padding: 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    th { background: #f1f5f9; }
+  </style>
 </head>
 <body>
+  <div class="auth-panel" id="auth-gate">
+    <div class="auth-box">
+      <h3>Dashboard Login</h3>
+      <input type="email" id="email" placeholder="Email">
+      <input type="password" id="pass" placeholder="Password">
+      <button id="login-btn">Log In</button>
+    </div>
+  </div>
 
-    <h1>🚨 Private Investigation Command Center</h1>
-
-    <!-- AUTHENTICATION FORM -->
-    <div id="auth-section" class="box">
-        <h3>Analyst Verification Secured</h3>
-        <input type="email" id="email" placeholder="Analyst Email Address">
-        <input type="password" id="password" placeholder="Encryption Key / Password">
-        <button onclick="login()">Access Secure Console</button>
+  <div class="wrapper" id="main-console">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Link Analytics</h2>
+      <button id="logout-btn" style="width:auto; background:#ef4444;">Log Out</button>
     </div>
 
-    <!-- MAIN APP SCREEN -->
-    <div id="main-section" class="hidden">
-        <!-- LINK CREATOR -->
-        <div class="box">
-            <h3>Generate New Monitored Link</h3>
-            <input type="text" id="token" placeholder="Unique Token Slug (e.g., cat-video-7)">
-            <input type="url" id="dest" placeholder="Decoy Redirect URL (e.g., https://youtube.com...)">
-            <button onclick="createLink()">Generate Ingestion Anchor</button>
-            <p id="output-link" style="color: #00ff88; font-family: monospace; font-weight: bold;"></p>
-        </div>
-
-        <!-- RECENT ACTIVITY LOGS -->
-        <div class="box">
-            <h3>Intercepted Device Logs</h3>
-            <button onclick="fetchLogs()">🔄 Refresh Live Logs</button>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Token</th>
-                        <th>IP Address</th>
-                        <th>OS Device</th>
-                        <th>Battery</th>
-                        <th>Coordinates (Lat, Lon)</th>
-                        <th>Resolved Physical Address</th>
-                    </tr>
-                </thead>
-                <tbody id="log-table-body">
-                    <!-- Logs dynamically dump here -->
-                </tbody>
-            </table>
-        </div>
-
-        <!-- VISUAL MAP TRACKER -->
-        <div class="box">
-            <h3>Live GPS Mapping Environment</h3>
-            <div id="map"></div>
-        </div>
+    <div class="card">
+      <h3>Create Tracking Link</h3>
+      <input type="text" id="link-label" placeholder="Label (e.g. Facebook Ad, Client Pitch)">
+      <input type="text" id="target-url" placeholder="Destination URL (e.g. https://yourlisting.com)">
+      <button id="generate-btn">Generate Link</button>
+      <div id="output-link" style="margin-top:10px; word-break:break-all;"></div>
     </div>
 
-    <script>
-        // CONFIGURATION LAYER (Option A: Static config + RLS)
-        const SUPABASE_URL = "https://yhernanwozabpmanoyif.supabase.co";
-        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InloZXJuYW53b3phYnBtYW5veWlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUwNzg4OTcsImV4cCI6MjEwMDY1NDg5N30.YwMaRYcZkeGPTySRs34d7Cg0jr4MGR71WHkCQGkv6FA";
-        
-        let map, marker;
+    <div class="card">
+      <h3>Click Logs <button id="refresh-btn" style="width:auto; float:right;">Refresh</button></h3>
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Link</th><th>Country</th><th>City</th><th>Device</th><th>Referrer</th></tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="6">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
 
-        function initMap(lat = 0, lon = 0, zoom = 2) {
-            if (typeof L === 'undefined') return;
-            if (map) {
-                map.setView([lat, lon], zoom);
-                return;
-            }
-            map = L.map('map').setView([lat, lon], zoom);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        }
+  <script>
+    const SUPABASE_URL = "https://YOUR-PROJECT-ID.supabase.co";
+    const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const REDIRECT_BASE_URL = "https://your-vercel-project.vercel.app/target.html";
 
-        async function login() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            try {
-                const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ email, password })
-                });
-                
-                const data = await res.json();
-                
-                if (!res.ok) {
-                    alert("Access Denied: " + (data.error_description || data.error || "Invalid Credentials"));
-                    return;
-                }
+    window.addEventListener('DOMContentLoaded', async () => {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) initConsole();
+    });
 
-                window.sessionStorage.setItem('sb_token', data.access_token);
-                document.getElementById('auth-section').classList.add('hidden');
-                document.getElementById('main-section').classList.remove('hidden');
-                initMap();
-                fetchLogs();
-            } catch(e) {
-                alert("Database Portal Blocked. Check your connection.");
-            }
-        }
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('pass').value;
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) alert("Login failed.");
+      else initConsole();
+    });
 
-        async function createLink() {
-            const token = document.getElementById('token').value;
-            const destination_url = document.getElementById('dest').value;
-            const jwt = window.sessionStorage.getItem('sb_token');
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await supabaseClient.auth.signOut();
+      location.reload();
+    });
 
-            try {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/tracking_links`, {
-                    method: 'POST',
-                    headers: {
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${jwt}`,
-                        'Content-Type': 'application/json',
-                        'Prefer': 'return=representation'
-                    },
-                    body: JSON.stringify({ token, destination_url })
-                });
+    function initConsole() {
+      document.getElementById('auth-gate').style.display = "none";
+      document.getElementById('main-console').style.display = "block";
+      loadLogs();
+    }
 
-                if (!res.ok) {
-                    const err = await res.json();
-                    alert("Creation Error: " + err.message);
-                } else {
-                    const currentOrigin = window.location.origin;
-                    document.getElementById('output-link').innerText = `Send this link to target: ${currentOrigin}/target.html?c=${token}`;
-                }
-            } catch(e) {
-                alert("Failed to submit link to database.");
-            }
-        }
+    document.getElementById('generate-btn').addEventListener('click', async () => {
+      const label = document.getElementById('link-label').value;
+      const destination = document.getElementById('target-url').value;
+      if (!destination) return alert("Enter a destination URL.");
+      const token = Math.random().toString(36).substring(2, 10);
 
-        async function getStreetAddress(lat, lon) {
-            if (!lat || !lon) return "No GPS Data Available";
-            try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`);
-                const data = await res.json();
-                return data.display_name || "Address look up failure";
-            } catch (e) {
-                return "Address API offline";
-            }
-        }
+      const { error } = await supabaseClient.from('tracking_links').insert([{ token, label, destination_url: destination }]);
+      if (error) alert("Could not create link.");
+      else {
+        const link = `${REDIRECT_BASE_URL}?c=${token}`;
+        document.getElementById('output-link').innerHTML = `<strong>Your link:</strong> ${link}`;
+      }
+    });
 
-        async function focusTargetOnMap(lat, lon, label) {
-            initMap(lat, lon, 16);
-            if (marker && map) map.removeLayer(marker);
-            if (map) marker = L.marker([lat, lon]).addTo(map).bindPopup(label).openPopup();
-        }
+    async function loadLogs() {
+      const tbody = document.getElementById('rows');
+      const { data, error } = await supabaseClient
+        .from('click_logs')
+        .select('*, tracking_links(label)')
+        .order('timestamp', { ascending: false });
 
-        async function fetchLogs() {
-            const jwt = window.sessionStorage.getItem('sb_token');
-            try {
-                const res = await fetch(`${SUPABASE_URL}/rest/v1/access_logs?select=*&order=timestamp.desc`, {
-                    method: 'GET',
-                    headers: {
-                        'apikey': SUPABASE_ANON_KEY,
-                        'Authorization': `Bearer ${jwt}`
-                    }
-                });
+      if (error || !data || data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6">No clicks yet.</td></tr>`;
+        return;
+      }
 
-                if (!res.ok) return;
-                const logs = await res.json();
+      tbody.innerHTML = "";
+      data.forEach(log => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${new Date(log.timestamp).toLocaleString()}</td>
+          <td>${log.tracking_links?.label || log.associated_token}</td>
+          <td>${log.country}</td>
+          <td>${log.city}</td>
+          <td>${log.device_type}</td>
+          <td>${log.referrer}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
 
-                const tbody = document.getElementById('log-table-body');
-                tbody.innerHTML = "";
-
-                for (let log of logs) {
-                    const tr = document.createElement('tr');
-                    const hasGPS = log.gps_latitude && log.gps_longitude;
-                    
-                    const coordsText = hasGPS ? `${log.gps_latitude}, ${log.gps_longitude}` : "N/A (Blocked)";
-                    const addressText = hasGPS ? await getStreetAddress(log.gps_latitude, log.gps_longitude) : "N/A";
-
-                    tr.innerHTML = `
-                        <td><b>${log.associated_token}</b></td>
-                        <td>${log.public_ip}</td>
-                        <td>${log.device_os}</td>
-                        <td>${log.battery_charge}</td>
-                        <td>${coordsText}</td>
-                        <td style="color: #64b5f6; font-size:12px;">${addressText}</td>
-                    `;
-
-                    if (hasGPS) {
-                        tr.style.cursor = "pointer";
-                        tr.title = "Click to visually map this target";
-                        tr.onclick = () => focusTargetOnMap(Number(log.gps_latitude), Number(log.gps_longitude), `Target: ${log.associated_token}<br>${log.public_ip}`);
-                    }
-
-                    tbody.appendChild(tr);
-                }
-            } catch(e) {
-                console.error("Could not fetch database logs", e);
-            }
-        }
-    </script>
+    document.getElementById('refresh-btn').addEventListener('click', loadLogs);
+  </script>
 </body>
 </html>
